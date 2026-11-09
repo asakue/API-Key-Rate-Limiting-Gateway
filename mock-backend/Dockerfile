@@ -8,7 +8,7 @@ COPY mock-backend/go.mod ./mock-backend/
 COPY mock-backend/main.go ./mock-backend/
 
 WORKDIR /app/mock-backend
-RUN CGO_ENABLED=0 GOOS=linux go build -o /mock-backend main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-w -s" -o /mock-backend main.go
 
 FROM alpine:3.20
 RUN apk --no-cache add ca-certificates

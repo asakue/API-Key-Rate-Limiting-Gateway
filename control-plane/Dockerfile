@@ -11,7 +11,7 @@ RUN go mod download
 WORKDIR /app
 COPY control-plane/ ./control-plane/
 WORKDIR /app/control-plane
-RUN GOOS=linux go build -o /control-plane ./cmd/server
+RUN GOOS=linux go build -ldflags="-w -s" -o /control-plane ./cmd/server
 
 FROM alpine:3.20
 RUN apk --no-cache add ca-certificates

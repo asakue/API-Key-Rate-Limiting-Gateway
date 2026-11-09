@@ -11,7 +11,7 @@ RUN go mod download
 WORKDIR /app
 COPY gateway/ ./gateway/
 WORKDIR /app/gateway
-RUN GOOS=linux go build -o /gateway ./cmd/gateway
+RUN GOOS=linux go build -ldflags="-w -s" -o /gateway ./cmd/gateway
 
 FROM alpine:3.20
 RUN apk --no-cache add ca-certificates
