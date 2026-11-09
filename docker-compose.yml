@@ -1,0 +1,106 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: gateway-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgrespassword
+      POSTGRES_DB: gateway_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d gateway_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: gateway-redis
+    restart: always
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  mock-backend:
+    build:
+      context: .
+      dockerfile: mock-backend/Dockerfile
+    container_name: gateway-mock-backend
+    restart: always
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+
+  control-plane:
+    build:
+      context: .
+      dockerfile: control-plane/Dockerfile
+    container_name: gateway-control-plane
+    restart: always
+    ports:
+      - "8081:8081"
+    environment:
+      PORT: "8081"
+      DATABASE_URL: "postgres://postgres:postgrespassword@postgres:5432/gateway_db?sslmode=disable"
+      REDIS_ADDR: "redis:6379"
+      JWT_SECRET: "gateway_jwt_production_secret_32bytes_min_key"
+      CORS_ORIGIN: "*"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  gateway:
+    build:
+      context: .
+      dockerfile: gateway/Dockerfile
+    container_name: gateway-dataplane
+    restart: always
+    ports:
+      - "8000:8000"
+    environment:
+      PORT: "8000"
+      REDIS_ADDR: "redis:6379"
+      DATABASE_URL: "postgres://postgres:postgrespassword@postgres:5432/gateway_db?sslmode=disable"
+      DEFAULT_UPSTREAM_URL: "http://mock-backend:8080"
+      L1_CACHE_TTL_SECONDS: "60"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mock-backend:
+        condition: service_started
+
+  dashboard:
+    build:
+      context: ./dashboard
+      dockerfile: Dockerfile
+    container_name: gateway-dashboard
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_CONTROL_PLANE_URL: "http://localhost:8081"
+      NEXT_PUBLIC_GATEWAY_URL: "http://localhost:8000"
+    depends_on:
+      - control-plane
+      - gateway
+
+volumes:
+  postgres_data:
+  redis_data:
+
